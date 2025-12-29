@@ -15,12 +15,12 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Set up Node.js
-'package.json' in github.workspace
+........'package.json' in github.workspace
         uses: actions/setup-node@v3
         with:
           node-version: '16'
 
-      - name: Install dependencies
+      run: test -f ${GITHUB_WORKSPACE}/package.json
         if: "'package.json' in github.workspace"
         run: |
           npm ci
