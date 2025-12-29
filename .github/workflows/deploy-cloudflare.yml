@@ -1,0 +1,61 @@
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        if: "'package.json' in github.workspace"
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      - name: Install dependencies
+        if: "'package.json' in github.workspace"
+        run: |
+          npm ci
+
+      - name: Build project
+        if: "'package.json' in github.workspace && 'build' in steps['package.json']"
+        run: |
+          npm run build
+
+      - name: Detect output directory
+        id: detect-output
+        run: |
+          if [ -d build ]; then echo "out=build" >> $GITHUB_ENV;
+          elif [ -d dist ]; then echo "out=dist" >> $GITHUB_ENV;
+          elif [ -d public ]; then echo "out=public" >> $GITHUB_ENV;
+          elif [ -d out ]; then echo "out=out" >> $GITHUB_ENV;
+          elif [ -f index.html ]; then
+            mkdir temp-deploy && cp index.html temp-deploy
+            echo "out=temp-deploy" >> $GITHUB_ENV;
+          else
+            echo "No deployable output found. Skipping Pages deploy." && exit 0;
+          fi
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          projectName: ${{ secrets.CF_PAGES_PROJECT_NAME }}
+          directory: ${{ env.out }}
+
+      - name: Publish Worker (if applicable)
+        if: "[ -f worker/wrangler.toml ]"
+        run: |
+          npm install -g @cloudflare/wrangler
+          wrangler publish --env production
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
